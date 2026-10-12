@@ -1,0 +1,14 @@
+[package]
+name = "kuyuan-verify"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+kuyuan-core = { path = "../core" }
+kuyuan-driver = { path = "../driver" }
+kuyuan-log = { path = "../log" }
+kuyuan-store = { path = "../store" }
+kuyuan-view = { path = "../view" }
+kuyuan-guard = { path = "../guard" }
+serde_json = "1"

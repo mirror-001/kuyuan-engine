@@ -1,0 +1,11 @@
+[package]
+name = "kuyuan-store"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kuyuan-core = { path = "../core" }
+kuyuan-driver = { path = "../driver" }
+kuyuan-log = { path = "../log" }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["float_roundtrip"] }

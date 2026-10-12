@@ -1,0 +1,1001 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>32×32 · 人机对局</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;padding:12px;background:#111418;color:#dfe6ee;font:14px/1.5 system-ui,-apple-system,"PingFang SC","Noto Sans CJK SC",sans-serif}
+  h1{font-size:16px;margin:0 0 6px}
+  .meta{display:flex;gap:12px;flex-wrap:wrap;color:#9fb0c3;font-size:13px;margin-bottom:8px}
+  .meta b{color:#dfe6ee}
+  #board{display:block;width:100%;max-width:420px;margin:0 auto 10px;background:#0b0e12;border:1px solid #2a3342;border-radius:8px;touch-action:manipulation}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:420px;margin:0 auto}
+  @media (max-width:360px){.grid{grid-template-columns:1fr}}
+  .card{background:#171c23;border:1px solid #2a3342;border-radius:8px;padding:8px 10px}
+  .card h2{font-size:12px;margin:0 0 6px;color:#9fb0c3;font-weight:600}
+  .row{display:flex;gap:6px;flex-wrap:wrap}
+  button{background:#222b36;border:1px solid #33404f;color:#dfe6ee;border-radius:6px;padding:6px 10px;font-size:13px}
+  button.sel{background:#2e6bd6;border-color:#4d84e6}
+  button:disabled{opacity:.4}
+  .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;max-width:134px}
+  .pad button{padding:6px 0;text-align:center}
+  .rangerow{display:flex;align-items:center;gap:8px}
+  #range{flex:1;accent-color:#4d84e6}
+  #range:disabled{opacity:.4}
+  #rangev{width:2ch;color:#dfe6ee;font-size:13px}
+  #msg{min-height:18px;color:#ffb454;font-size:13px;margin:6px 0 0}
+  #log{max-width:420px;margin:10px auto 0;background:#0b0e12;border:1px solid #2a3342;border-radius:8px;padding:8px;height:180px;overflow:auto;font:12px/1.6 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;color:#a7b6c6}
+  .legend{color:#7f8fa3;font-size:11px;margin-top:6px}
+  #howto{max-width:420px;margin:0 auto 10px;background:#171c23;border:1px solid #2a3342;border-radius:8px;padding:8px 10px;font-size:12.5px;color:#c9d6e2}
+  #howto summary{cursor:pointer;color:#9fb0c3;font-weight:600;font-size:12px}
+  #howto .how{margin-top:6px;line-height:1.8}
+  #howto b{color:#dfe6ee}
+  #howto .k{color:#7ee081}
+  .over{color:#7ee081}
+  #replaycard{max-width:420px;margin:10px auto 0;display:none}
+  #rt{flex:1;accent-color:#c58cff}
+  #rtv{width:3ch;color:#dfe6ee;font-size:13px}
+    .rbtns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+  #sandboxcard{max-width:420px;margin:10px auto 0}
+  #sandboxcard h3{font-size:12px;margin:10px 0 4px;color:#9fb0c3;font-weight:600}
+  #sandboxcard textarea{width:100%;min-height:96px;background:#0b0e12;color:#c9d6e2;border:1px solid #2a3342;border-radius:6px;padding:6px;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre;overflow:auto}
+  .stok{color:#7ee081}
+  .stbad{color:#ff6b6b}
+  .stidle{color:#7f8fa3}
+</style>
+</head>
+<body>
+<h1>32×32 · 人机对局</h1>
+<div class="meta">
+  <span>第 <b id="tick">0</b> 拍（上限 40）</span>
+  <span>结果：<b id="result">进行中</b></span>
+  <span>你 <b id="pos">–</b></span>
+  <span>冷却 <b id="cool">–</b></span>
+  <span>对手 <b id="oppname">–</b></span>
+</div>
+<details id="howto" open>
+  <summary>📖 怎么玩（60 秒）</summary>
+  <div class="how">
+    <b>一句话</b>：两人在黑箱里互相找——<b>谁先看见，谁的一发就先到</b>。没有血条，只有“我知道你在哪吗”。<br>
+    <b>每拍做 1 个动作</b>（点「提交本拍」生效）：<b>等</b>｜<b>移动</b>（八方向·1 格）｜<b>探</b>（射程 ≤6）｜<b>爆</b>（射程 4~16）。<br>
+    <b>你的两件设备</b>：<br>
+    ・<b>探器</b>×2：发射后<b>次拍起飞</b>（2 格/拍），<b>到位扫一次就消失</b>（半径 3 格）——扫到敌人＝<span class="k">红叉报告</span>；敌人扫到你＝<span class="k">橙框被警</span>（看得见它落点）。在飞时能<b>听</b>到 16 格内敌爆方位（<span class="k">粉线</span>·只方向）。<br>
+    ・<b>爆炸器</b>×1：发射后<b>次拍起飞</b>（16 格/拍），<b>到达次拍引爆</b>——命中任何人即“中”（<b>含自己</b>）；爆径 4 格；<span class="k">玫线</span>是爆炸方向（耳闻）。<br>
+    <b>冷却</b>：发射（探/爆）后 1 拍不能再发射（可移动）。<b>落点出界＝动作无效</b>（等于等待）。<br>
+    <b>一枪定生死</b>：被命中＝输 · 炸到自己＝输 · 同时中＝平 · 40 拍未决＝平局。<br>
+    <b>小心</b>：掷弹落点离自己太近（≤4）会炸到自己——从 4 格以外扔最保险。
+  </div>
+</details>
+<canvas id="board" width="640" height="640"></canvas>
+<div class="grid">
+  <div class="card">
+    <h2>动作</h2>
+    <div class="row" id="acts">
+      <button data-act="0">等待</button>
+      <button data-act="1">移动</button>
+      <button data-act="2">探</button>
+      <button data-act="3">爆</button>
+    </div>
+    <h2 style="margin-top:10px">方向</h2>
+    <div class="pad" id="pad">
+      <button data-dir="5">↖</button><button data-dir="1">↑</button><button data-dir="6">↗</button>
+      <button data-dir="3">←</button><button disabled>·</button><button data-dir="4">→</button>
+      <button data-dir="7">↙</button><button data-dir="2">↓</button><button data-dir="8">↘</button>
+    </div>
+    <h2 style="margin-top:10px">射程 <span id="rangetip">（发射时选）</span></h2>
+    <div class="rangerow">
+      <input id="range" type="range" min="1" max="6" value="4" step="1">
+      <span id="rangev">4</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button id="go">提交本拍</button>
+      <button id="new">新局</button>
+      <button id="save">存档</button>
+      <button id="load">读档</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span style="color:#9fb0c3;font-size:12px">动效</span>
+      <button id="sp_std" class="sel">标准</button>
+      <button id="sp_fast">快</button>
+      <button id="sp_skip">跳过</button>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <span style="color:#9fb0c3;font-size:12px">对手</span>
+      <button id="op_std" class="sel">听风</button>
+      <button id="op_hx">猎手</button>
+      <button id="op_r">随机</button>
+      <button id="op_d">木桩</button>
+      <button id="op_cu">自定义</button>
+    </div>
+    <div id="opcustom" style="display:none;font-size:12px;color:#9fb0c3;margin-top:6px">
+      耳朵 <input type="checkbox" id="oph" checked>
+      ·追击 <input type="number" id="opc" value="12" min="4" max="24" style="width:52px"> 拍
+      ·掷弹窗 <input type="number" id="opa" value="3" min="1" max="5" style="width:44px"> 拍
+      ·掷弹 <input type="number" id="opmin" value="4.05" min="4" max="8" step="0.05" style="width:60px">
+      – <input type="number" id="opmax" value="16" min="8" max="16" step="0.5" style="width:60px">
+    </div>
+    <div id="msg"></div>
+  </div>
+  <div class="card">
+    <h2>你的设备</h2>
+    <div id="dev" style="font-size:12px">–</div>
+    <h2 style="margin-top:10px">目击记录</h2>
+    <div id="sight" style="font-size:12px">–</div>
+    <div class="legend">蓝＝你 ·绿＝你的探测器 ·橙＝你的爆炸器／敌探警告 ·红叉＝目击敌位（可能已过时） ·紫圈＝反炮观测 ·粉线＝听到爆炸方位（只方向） ·玫线＝爆炸方向（耳闻）</div>
+  </div>
+</div>
+<div class="card" id="sandboxcard">
+  <h2>算法沙盒 · 教学／展示</h2>
+  <div class="legend">脚本只吃你的视野（同页面数据）；动作走同一道门——照实录帧，复盘／存读档一致。出错即停。</div>
+  <div class="legend">⚠ 脚本不会自动保存——请自行复制保存（要玩时粘回来即可）。</div>
+  <div class="legend">热图色标：值&lt;0＝无色；0→1＝蓝→红（&gt;1 按顶色）。</div>
+  <h3>策略 · 脚本接管 <button id="pol_tog">开</button> <button id="pol_demo">载入示范</button> <span id="pol_st" class="stidle">未启动</span></h3>
+  <textarea id="pol_code" spellcheck="false" placeholder="函数体：return {act, dir, range} —— 观测＝本拍视野快照；记忆＝跨拍对象"></textarea>
+  <h3>推断 · 热图 <button id="inf_tog">开</button> <button id="inf_demo">载入示范</button> <span id="inf_st" class="stidle">未启动</span></h3>
+  <textarea id="inf_code" spellcheck="false" placeholder="函数体：改「图」（32×32 值场）并 return 图 —— 观测＝{tick, me, cool, events}；记忆＝跨拍对象"></textarea>
+</div>
+<div class="card" id="replaycard">
+  <h2>复盘 · 全场视角</h2>
+  <div class="rbtns">
+    <button id="rprev">◀ 前一拍</button>
+    <button id="rplay">▶ 播放</button>
+    <button id="rnext">后一拍 ▶</button>
+  </div>
+  <div class="rangerow">
+    <input id="rt" type="range" min="1" max="1" value="1" step="1">
+    <span id="rtv">0</span>
+  </div>
+  <div class="legend" id="rtip">终局特权：拖动或播放，看整局双方的位置与设备（蓝=你 · 红=对手 · 绿/橙=你的设备 · 青/黄=对手设备 · 粉线=听到爆炸方位 · 玫线=爆炸方向）。</div>
+</div>
+<div id="log"></div>
+
+<script>
+let S = null, R = null, rt = 0, playing = null, rtTimer = null, act = 1, dir = 1;
+let oppMode = "standard", oppSynced = false;
+
+const $ = id => document.getElementById(id);
+const ACTN = {0:"等待",1:"移动",2:"探",3:"爆"};
+const DIRN = {1:"↑",2:"↓",3:"←",4:"→",5:"↖",6:"↗",7:"↙",8:"↘"};
+function arrowOf(dx, dy){
+  const A = ["→", "↘", "↓", "↙", "←", "↖", "↑", "↗"];
+  let d = Math.atan2(dy, dx) * 180 / Math.PI;
+  if (d < 0) d += 360;
+  return A[Math.round(d / 45) % 8];
+}
+const RESN = {0:"进行中",1:"你胜",2:"你负",3:"平局/终局"};
+
+function sel(btns, val, attr){
+  for (const b of btns) b.classList.toggle("sel", Number(b.dataset[attr]) === val);
+}
+function updateHint(){
+  let t = "先选动作";
+  if (act === 0) t = "等待：直接提交";
+  if (act === 1) t = "移动：选方向，然后提交";
+  if (act === 2) t = "探：选方向，射程拖轴（1–6）";
+  if (act === 3) t = "爆：选方向，射程拖轴（1–16）";
+  $("msg").textContent = t;
+}
+function syncRange(){
+  const r = $("range");
+  if (act === 2){ r.max = 6; r.disabled = false; $("rangetip").textContent = "（探 1–6）"; }
+  else if (act === 3){ r.max = 16; r.disabled = false; $("rangetip").textContent = "（爆 1–16）"; }
+  else { r.disabled = true; $("rangetip").textContent = "（发射时选）"; }
+  if (Number(r.value) > Number(r.max)) r.value = r.max;
+  if (Number(r.value) < Number(r.min)) r.value = r.min;
+  $("rangev").textContent = r.value;
+}
+function init(){
+  for (const b of document.querySelectorAll("#acts button")){
+    b.onclick = () => { act = Number(b.dataset.act); sel(document.querySelectorAll("#acts button"), act, "act"); syncRange(); updateHint(); };
+  }
+  for (const b of document.querySelectorAll("#pad button[data-dir]")){
+    b.onclick = () => { dir = Number(b.dataset.dir); sel(document.querySelectorAll("#pad button[data-dir]"), dir, "dir"); };
+  }
+  $("go").onclick = submitAct;
+  $("new").onclick = newGame;
+  $("save").onclick = doSave;
+  $("load").onclick = doLoad;
+  $("sp_std").onclick = () => setSpeed("标准");
+  $("sp_fast").onclick = () => setSpeed("快");
+  $("sp_skip").onclick = () => setSpeed("跳过");
+  $("op_std").onclick = () => pickOpp("standard");
+  $("op_hx").onclick = () => pickOpp("hunter");
+  $("op_r").onclick = () => pickOpp("random");
+  $("op_d").onclick = () => pickOpp("dummy");
+  $("op_cu").onclick = () => pickOpp("custom");
+  pickOpp("standard");
+  $("pol_tog").onclick = polToggle;
+  $("pol_demo").onclick = () => { $("pol_code").value = DEMO_POLICY; };
+  $("inf_tog").onclick = infToggle;
+  $("inf_demo").onclick = () => { $("inf_code").value = DEMO_INFER; };
+  sel(document.querySelectorAll("#acts button"), act, "act");
+  sel(document.querySelectorAll("#pad button[data-dir]"), dir, "dir");
+  $("range").oninput = () => { $("rangev").textContent = $("range").value; };
+  $("rprev").onclick = () => { stopPlay(); loadReplay(rt - 1); };
+  $("rnext").onclick = () => { stopPlay(); loadReplay(rt + 1); };
+  $("rplay").onclick = () => { if (playing) stopPlay(); else startPlay(); };
+  $("rt").oninput = () => { stopPlay(); $("rtv").textContent = $("rt").value; clearTimeout(rtTimer); rtTimer = setTimeout(() => loadReplay(Number($("rt").value)), 80); };
+  syncRange();
+  updateHint();
+  refresh();
+}
+async function api(path, opt){
+  if (window.K32_LOCAL) return window.K32_LOCAL.api(path, opt); // 本地模式（wasm 单机）
+  const r = await fetch(path, Object.assign({cache:"no-store"}, opt || {}));
+  const t = await r.json().catch(() => ({error:"返回不是 JSON"}));
+  if (!r.ok) throw new Error(t.error || ("HTTP " + r.status));
+  return t;
+}
+async function refresh(){
+    try { S = await api("/api/state"); render(); if (!oppSynced && S.opp) { syncOppUI(S.opp); oppSynced = true; } }
+  catch (e) { $("msg").textContent = "连不上壳：" + e.message; }
+}
+async function submitAct(){
+  if (!S) return;
+  const body = {act};
+  if (act >= 1) body.dir = dir;
+  if (act === 2 || act === 3) body.range = Number($("range").value);
+  const desc = ACTN[act] + (act>=1 ? " " + DIRN[dir] : "") + (act>=2 ? " ×" + body.range : "");
+  try {
+    S = await api("/api/act", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body)});
+    render();
+    $("msg").textContent = "已结算：" + desc;
+  } catch (e) {
+    $("msg").textContent = "没提交：" + e.message;
+  }
+}
+function oppBody(){
+  if (oppMode === "custom"){
+    return { mode: "custom", hear: $("oph").checked, chase: Number($("opc").value) || 12, bomb_age: Number($("opa").value) || 3, bomb_min: Number($("opmin").value) || 4.05, bomb_max: Number($("opmax").value) || 16 };
+  }
+  return { mode: oppMode };
+}
+function pickOpp(mode){
+  oppMode = mode;
+  for (const [id, m] of [["op_std","standard"],["op_hx","hunter"],["op_r","random"],["op_d","dummy"],["op_cu","custom"]]) $(id).classList.toggle("sel", m === mode);
+  $("opcustom").style.display = (mode === "custom") ? "block" : "none";
+}
+function syncOppUI(o){
+  if (!o || !o.mode) return;
+  oppMode = o.mode;
+  for (const [id, m] of [["op_std","standard"],["op_hx","hunter"],["op_r","random"],["op_d","dummy"],["op_cu","custom"]]) $(id).classList.toggle("sel", m === oppMode);
+  if (o.hear !== undefined) $("oph").checked = !!o.hear;
+  if (o.chase !== undefined) $("opc").value = o.chase;
+  if (o.bomb_age !== undefined) $("opa").value = o.bomb_age;
+  if (o.bomb_min !== undefined) $("opmin").value = o.bomb_min;
+  if (o.bomb_max !== undefined) $("opmax").value = o.bomb_max;
+  $("opcustom").style.display = (oppMode === "custom") ? "block" : "none";
+}
+
+async function newGame(){
+    try { S = await api("/api/new", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(oppBody())}); displayReset(); render(); syncOppUI(S.opp); oppSynced = true; $("msg").textContent = "新局开了（对手：" + (S.opp_name || "听风") + "）。"; }
+  catch (e) { $("msg").textContent = "新局失败：" + e.message; }
+}
+async function doSave(){
+  try { const r = await api("/api/save", {method:"POST"}); $("msg").textContent = "已存档：第 " + r.tick + " 拍"; }
+  catch (e) { $("msg").textContent = "存档失败：" + e.message; }
+}
+async function doLoad(){
+    try { S = await api("/api/load", {method:"POST"}); displayReset(); render(); syncOppUI(S.opp); oppSynced = true; $("msg").textContent = "已读档：第 " + S.tick + " 拍（对手：" + (S.opp_name || "?") + "）"; }
+  catch (e) { $("msg").textContent = "读档失败：" + e.message; }
+}
+function render(){ if (!S) return; absorbObs(); if (infOn) inferStep(); if (infOn && heat) heatLog[S.tick] = heat.slice(); $("tick").textContent = S.tick;
+  $("result").textContent = RESN[S.result] || S.result;
+  $("pos").textContent = "(" + S.pos[0].toFixed(1) + ", " + S.pos[1].toFixed(1) + ")";
+    $("cool").textContent = S.cooldown;
+  $("oppname").textContent = (S.opp_name || "–");
+  $("go").disabled = (S.result !== 0) || polOn;
+  if (S.result !== 0) setupReplay(); else teardownReplay();
+  if (R){
+    if (!Rdisp) Rdisp = R;
+    drawReplayDisp(staticReplay(Rdisp));
+  } else {
+    setLive(S);
+  }
+  const dev = [];
+  for (const p of S.probes) dev.push("探" + p.i + "：" + (p.active ? ("在飞（已飞 " + p.flown.toFixed(0) + "／行程 " + p.range.toFixed(0) + "）") : "待命"));
+  for (const b of S.bombs) dev.push("爆炸器：" + (b.armed ? ("已发射（落点 " + b.x.toFixed(0) + "," + b.y.toFixed(0) + "）") : "空"));
+  $("dev").innerHTML = dev.join("<br>");
+  const sg = [];
+  for (const w of S.warns) sg.push("⚠ 第" + w.tick + "拍 · 敌探扫至 (" + w.x.toFixed(0) + "," + w.y.toFixed(0) + ")");
+  for (const r of S.reports) sg.push("◎ 第" + r.tick + "拍 · 探到敌 (" + r.x.toFixed(1) + "," + r.y.toFixed(1) + ")（相对 " + r.dx.toFixed(1) + "," + r.dy.toFixed(1) + "）");
+  for (const f of S.fires) sg.push("※ 第" + f.tick + "拍 · 反炮观测爆于 (" + f.x.toFixed(1) + "," + f.y.toFixed(1) + ")");
+  for (const h of (S.hears || [])) sg.push("♪ 第" + h.tick + "拍 · 探" + h.i + "听到爆炸方位（" + h.dx.toFixed(2) + "," + h.dy.toFixed(2) + " · 只方向无距离）");
+  for (const b of (S.blasts || [])) sg.push("💥 第" + b.tick + "拍 · 爆炸方向 " + arrowOf(b.dx, b.dy));
+  $("sight").innerHTML = sg.length ? sg.join("<br>") : "（暂无）";
+  const lg = $("log");
+  lg.textContent = (S.log || []).join("\n");
+  lg.scrollTop = lg.scrollHeight;
+}
+function setupReplay(){
+  $("replaycard").style.display = "block";
+  $("rt").max = S.tick;
+  if (R === null){ rt = S.tick; loadReplay(rt); }
+}
+function teardownReplay(){
+  stopPlay();
+  clearTimeout(rtTimer);
+  cutAnim();
+  R = null; Rprev = null; Rdisp = null; rt = 0;
+  $("replaycard").style.display = "none";
+}
+function loadReplay(n){
+  if (!S) return;
+  n = Math.max(1, Math.min(n, S.tick));
+  (window.K32_LOCAL ? window.K32_LOCAL.replay(n) : fetch("/api/replay?t=" + n, {cache:"no-store"}).then(r => r.json()))
+    .then(d => {
+      if (d.error) { $("rtip").textContent = "复盘不可用：" + d.error; return; }
+      const prev = R;
+      R = d; rt = n;
+      $("rt").value = n; $("rtv").textContent = n;
+      $("rtip").textContent = "第 " + d.tick + " 拍（共 " + d.total + " 拍）· 蓝=你 · 红=对手 · 绿/橙=你的设备 · 青/黄=对手设备 · 粉线=听到方位 · 玫线=爆炸方向";
+      if (prev && prev.tick < d.tick){
+        cutAnim();
+        startAnim("replay", prev, d);
+      } else {
+        cutAnim();
+        Rdisp = d;
+        drawReplayDisp(staticReplay(d));
+      }
+    })
+    .catch(e => { $("rtip").textContent = "复盘拉取失败：" + e.message; });
+}
+function startPlay(){
+  if (playing) return;
+  $("rplay").textContent = "⏸ 暂停";
+  playing = setInterval(() => {
+    if (!S || R === null || rt >= S.tick) { stopPlay(); return; }
+    loadReplay(rt + 1);
+  }, 650);
+}
+function stopPlay(){
+  if (playing) { clearInterval(playing); playing = null; }
+  $("rplay").textContent = "▶ 播放";
+}
+
+// ============ 动效（拍间补间 ＋ 特效 · 动效批） ============
+// 口径：动画只演“你该看到的”；不改世界。速度三档：标准／快／跳过。
+const SPEEDS = { "标准": 650, "快": 350, "跳过": 0 };
+let speed = "标准";
+let anim = null;   // {kind:'live'|'replay', t0, dur, from, to}
+let rafOn = false;
+let dispS = null;  // 实时：最后完整显示的状态
+let Rprev = null;  // 复盘：上一帧
+let Rdisp = null;  // 复盘：当前显示帧
+
+function speedMs(){ return SPEEDS[speed]; }
+function lerp(a, b, u){ return a + (b - a) * u; }
+function ease(u){ return u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; }
+function findP(list, i){
+  for (const p of (list || [])) if (p.i === i) return p;
+  return null;
+}
+function setSpeed(s){
+  speed = s;
+  for (const pair of [["sp_std", "标准"], ["sp_fast", "快"], ["sp_skip", "跳过"]])
+    $(pair[0]).classList.toggle("sel", pair[1] === s);
+  cutAnim();
+}
+function displayReset(){ anim = null; dispS = null; Rprev = null; Rdisp = null; polMem = {}; obs = []; obsTick = 0; infMem = {}; heat = null; heatLog = []; lastProbes = []; pendingScanmiss = []; }
+
+function pump(){
+  rafOn = false;
+  if (!anim) return;
+  const u = Math.min(1, (performance.now() - anim.t0) / anim.dur);
+  if (anim.kind === "live") drawLive(composeLive(anim.from, anim.to, u));
+  else drawReplayDisp(composeReplay(anim.from, anim.to, u));
+  if (u < 1){
+    rafOn = true;
+    requestAnimationFrame(pump);
+  } else {
+    const done = anim;
+    anim = null;
+    if (done.kind === "live") dispS = done.to; else Rdisp = done.to;
+  }
+}
+function startAnim(kind, from, to){
+  const dur = speedMs();
+  if (!from || dur <= 0){
+    anim = null;
+    if (kind === "live"){ dispS = to; drawLive(staticLive(to)); }
+    else { Rdisp = to; drawReplayDisp(staticReplay(to)); }
+    return;
+  }
+  anim = { kind: kind, t0: performance.now(), dur: dur, from: from, to: to };
+  if (!rafOn){ rafOn = true; requestAnimationFrame(pump); }
+}
+function cutAnim(){
+  if (!anim) return;
+  const done = anim;
+  anim = null;
+  if (done.kind === "live"){ dispS = done.to; drawLive(staticLive(done.to)); }
+  else { Rdisp = done.to; drawReplayDisp(staticReplay(done.to)); }
+}
+function setLive(next){
+  if (!dispS || dispS.tick === next.tick){ cutAnim(); dispS = next; drawLive(staticLive(next)); return; }
+  cutAnim();
+  startAnim("live", dispS, next);
+}
+
+// ---------- 静态显示模型 ----------
+function staticLive(S){
+  return {
+    pos: S.pos.slice(), posAlive: S.alive, result: S.result,
+    warns: S.warns, reports: S.reports, fires: S.fires,
+    probes: S.probes.map(p => ({ i: p.i, active: p.active, from: p.from, to: p.to, cur: p.cur.slice(), alpha: 1, heard: p.heard })),
+    bombs: S.bombs.map(b => ({ armed: b.armed, x: b.x, y: b.y })),
+    blast: S.blast ? { dx: S.blast[0], dy: S.blast[1], len: 10 } : null,
+    effects: []
+  };
+}
+function sideStatic(p){
+  return {
+    x: p.x, y: p.y, alive: p.alive,
+    probes: (p.probes || []).map(pr => ({ from: pr.from, to: pr.to, cur: pr.cur.slice(), alpha: 1 })),
+    bombs: (p.bombs || []).map(b => ({ armed: b.armed, x: b.x, y: b.y })),
+    blast: p.blast ? { dx: p.blast[0], dy: p.blast[1], len: 10 } : null
+  };
+}
+function staticReplay(d){ return { tick: d.tick, total: d.total, p1: sideStatic(d.p1), p2: sideStatic(d.p2), effects: [] }; }
+
+// ---------- 补间合成 ----------
+function composeLive(from, to, u){
+  const e = ease(u);
+  const d = staticLive(to);
+  d.effects = [];
+  d.pos = [lerp(from.pos[0], to.pos[0], e), lerp(from.pos[1], to.pos[1], e)];
+  d.probes = [];
+  for (const p of to.probes){
+    const q = findP(from.probes, p.i);
+    if (!p.active){
+      if (q && q.active){
+        d.probes.push({ i: p.i, active: true, from: q.from, to: q.to,
+          cur: [lerp(q.cur[0], q.to[0], e), lerp(q.cur[1], q.to[1], e)],
+          alpha: 1 - Math.max(0, (e - 0.7) / 0.3), heard: null });
+        d.effects.push({ type: "ping", x: q.to[0], y: q.to[1], u: u });
+      }
+      continue;
+    }
+    if (q && q.active){
+      d.probes.push({ i: p.i, active: true, from: p.from, to: p.to,
+        cur: [lerp(q.cur[0], p.cur[0], e), lerp(q.cur[1], p.cur[1], e)], alpha: 1, heard: p.heard });
+    } else {
+      d.probes.push({ i: p.i, active: true, from: p.from, to: p.to, cur: p.from.slice(),
+        alpha: Math.min(1, 0.25 + u * 1.5), heard: p.heard });
+    }
+    if (p.heard){
+      const cur = d.probes[d.probes.length - 1].cur;
+      d.effects.push({ type: "hear", x: cur[0], y: cur[1], dx: p.heard[0], dy: p.heard[1], u: u });
+    }
+  }
+  const b = (to.bombs || [])[0], pb = (from.bombs || [])[0];
+  d.bombs = [];
+  if (b && b.armed && !(pb && pb.armed)){
+    const sx = from.pos[0], sy = from.pos[1], tx = b.x, ty = b.y;
+    const dist = Math.hypot(tx - sx, ty - sy);
+    const mx = (sx + tx) / 2, my = (sy + ty) / 2 - dist * 0.18;
+    const ix = (1 - e) * (1 - e) * sx + 2 * (1 - e) * e * mx + e * e * tx;
+    const iy = (1 - e) * (1 - e) * sy + 2 * (1 - e) * e * my + e * e * ty;
+    d.bombs.push({ armed: true, x: ix, y: iy });
+  } else if (pb && pb.armed && b && !b.armed){
+    d.effects.push({ type: "blast", x: pb.x, y: pb.y, u: u });
+  } else if (b && b.armed){
+    d.bombs.push({ armed: true, x: b.x, y: b.y });
+  }
+  if (to.blast) d.blast = { dx: to.blast[0], dy: to.blast[1], len: 10 * e };
+  else d.blast = null;
+  return d;
+}
+function sideWalk(side, prev, u, effects){
+  const e = ease(u);
+  const d = { x: lerp(prev.x, side.x, e), y: lerp(prev.y, side.y, e), alive: side.alive, probes: [], bombs: [], blast: null };
+  for (const p of (side.probes || [])){
+    const q = findP(prev.probes, p.i);
+    if (!p.active){
+      if (q && q.active){
+        d.probes.push({ from: q.from, to: q.to,
+          cur: [lerp(q.cur[0], q.to[0], e), lerp(q.cur[1], q.to[1], e)],
+          alpha: 1 - Math.max(0, (e - 0.7) / 0.3) });
+        effects.push({ type: "ping", x: q.to[0], y: q.to[1], u: u });
+      }
+      continue;
+    }
+    if (q && q.active) d.probes.push({ from: p.from, to: p.to, cur: [lerp(q.cur[0], p.cur[0], e), lerp(q.cur[1], p.cur[1], e)], alpha: 1 });
+    else d.probes.push({ from: p.from, to: p.to, cur: p.from.slice(), alpha: Math.min(1, 0.25 + u * 1.5) });
+  }
+  const b = (side.bombs || [])[0], pb = (prev.bombs || [])[0];
+  if (b && b.armed && !(pb && pb.armed)){
+    const sx = prev.x, sy = prev.y, tx = b.x, ty = b.y;
+    const dist = Math.hypot(tx - sx, ty - sy);
+    const mx = (sx + tx) / 2, my = (sy + ty) / 2 - dist * 0.18;
+    d.bombs.push({ armed: true,
+      x: (1 - e) * (1 - e) * sx + 2 * (1 - e) * e * mx + e * e * tx,
+      y: (1 - e) * (1 - e) * sy + 2 * (1 - e) * e * my + e * e * ty });
+  } else if (pb && pb.armed && b && !b.armed){
+    effects.push({ type: "blast", x: pb.x, y: pb.y, u: u });
+  } else if (b && b.armed){
+    d.bombs.push({ armed: true, x: b.x, y: b.y });
+  }
+  if (side.blast) d.blast = { dx: side.blast[0], dy: side.blast[1], len: 10 * e };
+  return d;
+}
+function composeReplay(from, to, u){
+  const effects = [];
+  const p1 = sideWalk(to.p1, from.p1, u, effects);
+  const p2 = sideWalk(to.p2, from.p2, u, effects);
+  return { tick: to.tick, total: to.total, p1: p1, p2: p2, effects: effects };
+}
+
+// ---------- 绘制 ----------
+function drawEffects(g, k, effects){
+  for (const ef of (effects || [])){
+    const t = Math.max(0, Math.min(1, ef.u === undefined ? 1 : ef.u));
+    if (ef.type === "blast"){
+      g.globalAlpha = 1 - t;
+      g.strokeStyle = "#ffb454"; g.lineWidth = 3;
+      g.beginPath(); g.arc(ef.x * k, ef.y * k, (0.6 + 3.4 * t) * k, 0, Math.PI * 2); g.stroke();
+      g.fillStyle = "#ffd9a0";
+      g.beginPath(); g.arc(ef.x * k, ef.y * k, 1.4 * (1 - t) * k + 2, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = 1;
+    }
+    if (ef.type === "ping"){
+      g.globalAlpha = 1 - t;
+      g.strokeStyle = "#7ee081"; g.lineWidth = 2;
+      g.beginPath(); g.arc(ef.x * k, ef.y * k, (0.4 + 3.1 * t) * k, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = 1;
+    }
+    if (ef.type === "hear"){
+      const a = Math.atan2(ef.dy, ef.dx);
+      g.globalAlpha = 1 - 0.6 * t;
+      g.strokeStyle = "#f0abfc"; g.lineWidth = 3;
+      g.beginPath(); g.arc(ef.x * k, ef.y * k, (0.8 + 3.2 * t) * k, a - 0.38, a + 0.38); g.stroke();
+      g.globalAlpha = 1;
+    }
+  }
+}
+function drawLive(d){
+  const c = $("board"), g = c.getContext("2d");
+  const W = c.width, k = W / 32;
+  g.clearRect(0, 0, W, W);
+  g.fillStyle = "#0b0e12"; g.fillRect(0, 0, W, W);
+  g.strokeStyle = "#1d2530"; g.lineWidth = 1;
+  for (let i = 0; i <= 32; i++){
+    const p = Math.round(i * k) + 0.5;
+    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, W); g.stroke();
+    g.beginPath(); g.moveTo(0, p); g.lineTo(W, p); g.stroke();
+  }
+  drawHeat(g, k);
+  for (const w of d.warns){
+    g.strokeStyle = "#ffb454"; g.lineWidth = 3;
+    g.strokeRect(w.x * k - 5, w.y * k - 5, 10, 10);
+  }
+  for (const r of d.reports){
+    g.strokeStyle = "#ff6b6b"; g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(r.x * k - 5, r.y * k - 5); g.lineTo(r.x * k + 5, r.y * k + 5);
+    g.moveTo(r.x * k + 5, r.y * k - 5); g.lineTo(r.x * k - 5, r.y * k + 5);
+    g.stroke();
+  }
+  for (const f of d.fires){
+    g.strokeStyle = "#c58cff"; g.lineWidth = 3;
+    g.beginPath(); g.arc(f.x * k, f.y * k, 5, 0, Math.PI * 2); g.stroke();
+  }
+  for (const p of d.probes){
+    g.globalAlpha = (p.alpha === undefined ? 1 : p.alpha);
+    g.strokeStyle = "#3d6f52"; g.lineWidth = 2; g.setLineDash([4, 4]);
+    g.beginPath(); g.moveTo(p.from[0] * k, p.from[1] * k); g.lineTo(p.to[0] * k, p.to[1] * k); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = "#7ee081";
+    g.beginPath(); g.arc(p.cur[0] * k, p.cur[1] * k, 4, 0, Math.PI * 2); g.fill();
+    if (p.heard){
+      g.strokeStyle = "#f0abfc"; g.lineWidth = 2; g.setLineDash([2, 4]);
+      g.beginPath(); g.moveTo(p.cur[0] * k, p.cur[1] * k);
+      g.lineTo((p.cur[0] + p.heard[0] * 9) * k, (p.cur[1] + p.heard[1] * 9) * k); g.stroke();
+      g.setLineDash([]);
+    }
+    g.globalAlpha = 1;
+  }
+  for (const b of d.bombs){
+    if (!b.armed) continue;
+    g.fillStyle = "#ffb454";
+    g.beginPath(); g.arc(b.x * k, b.y * k, 5, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = "#fff3d6"; g.lineWidth = 1;
+    g.beginPath(); g.arc(b.x * k, b.y * k, 5, 0, Math.PI * 2); g.stroke();
+  }
+  if (d.blast){
+    g.strokeStyle = "#ff7ab6"; g.lineWidth = 2; g.setLineDash([6, 3]);
+    g.beginPath(); g.moveTo(d.pos[0] * k, d.pos[1] * k);
+    g.lineTo((d.pos[0] + d.blast.dx * d.blast.len) * k, (d.pos[1] + d.blast.dy * d.blast.len) * k); g.stroke();
+    g.setLineDash([]);
+  }
+  drawEffects(g, k, d.effects);
+  g.fillStyle = "#4d9de0";
+  g.beginPath(); g.arc(d.pos[0] * k, d.pos[1] * k, 7, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "#9fd0ff"; g.lineWidth = 2; g.stroke();
+  if (!d.posAlive){
+    g.strokeStyle = "#ffffff"; g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(d.pos[0] * k - 9, d.pos[1] * k - 9); g.lineTo(d.pos[0] * k + 9, d.pos[1] * k + 9);
+    g.moveTo(d.pos[0] * k + 9, d.pos[1] * k - 9); g.lineTo(d.pos[0] * k - 9, d.pos[1] * k + 9);
+    g.stroke();
+  }
+}
+function sideDisp(pl, bodyC, probeC, bombC, g, k){
+  for (const pr of pl.probes){
+    g.globalAlpha = (pr.alpha === undefined ? 1 : pr.alpha);
+    g.strokeStyle = probeC; g.lineWidth = 2; g.setLineDash([4, 4]);
+    g.beginPath(); g.moveTo(pr.from[0] * k, pr.from[1] * k); g.lineTo(pr.to[0] * k, pr.to[1] * k); g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = probeC;
+    g.beginPath(); g.arc(pr.cur[0] * k, pr.cur[1] * k, 4, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1;
+  }
+  for (const b of pl.bombs){
+    if (!b.armed) continue;
+    g.fillStyle = bombC;
+    g.beginPath(); g.arc(b.x * k, b.y * k, 5, 0, Math.PI * 2); g.fill();
+  }
+  if (pl.blast){
+    g.strokeStyle = "#ff7ab6"; g.lineWidth = 2; g.setLineDash([6, 3]);
+    g.beginPath(); g.moveTo(pl.x * k, pl.y * k);
+    g.lineTo((pl.x + pl.blast.dx * pl.blast.len) * k, (pl.y + pl.blast.dy * pl.blast.len) * k); g.stroke();
+    g.setLineDash([]);
+  }
+  g.fillStyle = bodyC;
+  g.beginPath(); g.arc(pl.x * k, pl.y * k, 7, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = "#ffffff55"; g.lineWidth = 2; g.stroke();
+  if (!pl.alive){
+    g.strokeStyle = "#ffffff"; g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(pl.x * k - 9, pl.y * k - 9); g.lineTo(pl.x * k + 9, pl.y * k + 9);
+    g.moveTo(pl.x * k + 9, pl.y * k - 9); g.lineTo(pl.x * k - 9, pl.y * k + 9);
+    g.stroke();
+  }
+}
+function drawReplayDisp(D){
+  const c = $("board"), g = c.getContext("2d");
+  const W = c.width, k = W / 32;
+  g.clearRect(0, 0, W, W);
+  g.fillStyle = "#0b0e12"; g.fillRect(0, 0, W, W);
+  g.strokeStyle = "#1d2530"; g.lineWidth = 1;
+  for (let i = 0; i <= 32; i++){
+    const p = Math.round(i * k) + 0.5;
+    g.beginPath(); g.moveTo(p, 0); g.lineTo(p, W); g.stroke();
+    g.beginPath(); g.moveTo(0, p); g.lineTo(W, p); g.stroke();
+  }
+  const hv = heatLog[D.tick];
+  if (hv) drawHeat(g, k, hv);
+  sideDisp(D.p2, "#ff6b6b", "#35c4c4", "#e8d44d", g, k);
+  sideDisp(D.p1, "#4d9de0", "#7ee081", "#ffb454", g, k);
+  drawEffects(g, k, D.effects);
+}
+// ============ 算法沙盒 · 段①：策略编辑器 ＋ 脚本接管（批三） ============
+let polOn = false, polFn = null, polMem = {}, polTimer = null, polBusy = false, polGap = 300;
+
+const DEMO_POLICY = `//示范 · 看图打 v2.1（炮侦：火力试探 · 逐区排查 · 排完转点 · 自卫/试探）
+//前 10 拍布置（不主动开炮；被报告锁定则自卫反击）；之后对热图上最热的"大区"配雷试点：
+//区越热→雷越多（1~4 颗）；一区排干净才排队下一区；开炮即机动——
+//用雷声把对方引到弹落区，转点留给自己。
+//返回 {act:0等待|1移动|2探|3爆, dir:1..8, range:1..6或1..16}
+//dir：1↑ 2↓ 3← 4→ 5↖ 6↗ 7↙ 8↘
+const HEAT_MIN = 0.11;  // 敢炸的热峰阈值（均匀底 0.1）
+const 布置期 = 10;      // 前 10 拍不开炮
+const 区边长 = 8;       // 8×8 格 = 一个"大区"（全图 4×4 = 16 区）
+const 基线 = 0.1;       // 均匀底
+const 复燃 = 1.15;      // 已排区热回涨超基线 15% → 撤销"已排"，重新排队
+function 向(dx, dy){
+  const a = Math.atan2(dy, dx) * 180 / Math.PI;
+  const g = ((a % 360) + 360 + 22.5) % 360;
+  return [4,8,2,7,3,5,1,6][Math.floor(g / 45) % 8];
+}
+const me = 观测.pos, cool = 观测.cooldown, tick = 观测.tick;
+const 探空 = !(观测.probes || []).some(p => p.active);
+if (!记忆.排){ 记忆.排 = new Array(16).fill(false); 记忆.预算 = new Array(16).fill(0); }
+// ① 报告（≤2拍）：硬情报优先——布置期也反击（自卫例外）
+const rep = (观测.reports || []).slice(-1)[0];
+if (rep && tick - rep.tick <= 2){
+  const dx = rep.x - me[0], dy = rep.y - me[1], d = Math.hypot(dx, dy);
+  if (cool === 0 && d > 4.05 && d <= 16) return { act:3, dir:向(dx, dy), range:d }; // 自卫：布置期也不站着挨打
+  if (d > 16) return { act:1, dir:向(dx, dy) };
+  if (d <= 4.05) return { act:1, dir:向(-dx, -dy) };
+  if (cool === 0 && 探空) return { act:2, dir:向(dx, dy), range:Math.min(6, Math.max(1, d)) };
+}
+// ② 试点（布置期后 · 有热图）：算 16 区热桶 → 选最热的未排区 → 区内热峰配雷
+const 图 = 观测.heat;
+if (图 && tick >= 布置期){
+  const 桶 = new Array(16).fill(0);
+  for (let i = 0; i < 1024; i++){
+    const x = i % 32, y = Math.floor(i / 32);
+    桶[Math.floor(y / 区边长) * 4 + Math.floor(x / 区边长)] += 图[i];
+  }
+  const 基线桶 = 64 * 基线;
+  for (let q = 0; q < 16; q++){
+    if (记忆.排[q] && 桶[q] > 基线桶 * 复燃){ 记忆.排[q] = false; 记忆.预算[q] = 0; }
+  }
+  let 当前 = -1, 最佳 = -1;
+  for (let q = 0; q < 16; q++) if (!记忆.排[q] && 桶[q] > 最佳){ 最佳 = 桶[q]; 当前 = q; }
+  if (当前 >= 0 && 桶[当前] > 基线桶 * 1.05){
+    // 预算：比基线每热 10% 加一颗，1~4 颗（"大区多扔几颗"）
+    if (!记忆.预算[当前]) 记忆.预算[当前] = Math.min(4, Math.max(1, Math.ceil((桶[当前] / 基线桶 - 1) / 0.1)));
+    const x0 = (当前 % 4) * 区边长, y0 = Math.floor(当前 / 4) * 区边长;
+    let v = -1e9, bx = x0, by = y0;
+    for (let yy = 0; yy < 区边长; yy++) for (let xx = 0; xx < 区边长; xx++){
+      const i = (y0 + yy) * 32 + (x0 + xx);
+      if (图[i] > v){ v = 图[i]; bx = x0 + xx; by = y0 + yy; }
+    }
+    const dx = (bx + 0.5) - me[0], dy = (by + 0.5) - me[1], d = Math.hypot(dx, dy);
+    if (cool === 0 && d > 4.05 && d <= 16 && v >= HEAT_MIN){
+      记忆.预算[当前] -= 1;
+      if (记忆.预算[当前] <= 0) 记忆.排[当前] = true;  // 排干净 → 下一拍自动转向下一区（转点）
+      return { act:3, dir:向(dx, dy), range:d };
+    }
+    if (d > 16) return { act:1, dir:向(dx, dy) };    // 太远：挪近
+    if (d <= 4.05) return { act:1, dir:向(-dx, -dy) }; // 太近：退开再打
+    if (cool === 0 && 探空) return { act:2, dir:向(dx, dy), range:6 };
+    return { act:1, dir:向(dx, dy) };
+  }
+}
+// ②b 静图试探：图平静时，隔几拍朝巡逻向扔一颗"问路炮"（主动造信息，别干等）
+if (图 && tick >= 布置期 && cool === 0 && tick % 6 === 0){
+  const WQ = [[31,31],[1,1],[31,1],[1,31]];
+  if (记忆.wp === undefined) 记忆.wp = 0;
+  const wq = WQ[记忆.wp % 4];
+  const dx0 = wq[0] - me[0], dy0 = wq[1] - me[1], d0 = Math.hypot(dx0, dy0);
+  if (d0 > 4.05) return { act:3, dir:向(dx0, dy0), range:Math.min(16, d0) };
+}
+// ③ 爆向（敌弹 · ≤4拍）：朝那边摸 + 顺路探
+const bs = (观测.blasts || []).filter(b => !b.mine && tick - b.tick <= 4);
+if (bs.length){
+  const b = bs[bs.length - 1];
+  if (cool === 0 && 探空) return { act:2, dir:向(b.dx, b.dy), range:6 };
+  return { act:1, dir:向(b.dx, b.dy) };
+}
+// ④ 被警（≤5拍）：敌探来过的方向补一探
+const ws = (观测.warns || []).filter(w => tick - w.tick <= 5);
+if (ws.length){
+  const w = ws[ws.length - 1];
+  const dx = w.x - me[0], dy = w.y - me[1], d = Math.hypot(dx, dy);
+  if (cool === 0 && 探空 && d >= 0.5) return { act:2, dir:向(dx, dy), range:Math.max(1, Math.min(6, Math.round(d))) };
+}
+// ⑤ 巡逻（含布置期）：四角轮转；闲时朝巡逻点打探
+const WP = [[31,31],[1,1],[31,1],[1,31]];
+if (记忆.wp === undefined) 记忆.wp = 0;
+let wp = WP[记忆.wp % 4];
+let dx = wp[0] - me[0], dy = wp[1] - me[1], d = Math.hypot(dx, dy);
+if (d <= 0.6){
+  记忆.wp = (记忆.wp + 1) % 4;
+  wp = WP[记忆.wp % 4]; dx = wp[0] - me[0]; dy = wp[1] - me[1]; d = Math.hypot(dx, dy);
+}
+if (cool === 0 && 探空) return { act:2, dir:向(dx, dy), range:Math.max(1, Math.min(6, Math.round(d))) };
+return { act:1, dir:向(dx, dy) };
+`;
+
+function polStatus(txt, cls){ const el = $("pol_st"); el.textContent = txt; el.className = cls || "stidle"; }
+function polBody(r){
+  if (!r || typeof r !== "object") return null;
+  const act = Number(r.act);
+  if (![0,1,2,3].includes(act)) return null;
+  const b = { act: act };
+  if (act >= 1){
+    const d = Number(r.dir);
+    if (!(d >= 1 && d <= 8)) return null;
+    b.dir = Math.round(d);
+  }
+  if (act === 2){
+    const g = Number(r.range);
+    if (!(g > 0 && g <= 6)) return null;
+    b.range = g;
+  }
+  if (act === 3){
+    const g = Number(r.range);
+    if (!(g > 0 && g <= 16)) return null;
+    b.range = g;
+  }
+  return b;
+}
+function polSchedule(delay){
+  clearTimeout(polTimer);
+  if (!polOn || !S) return;
+  if (S.result !== 0){ polStop("对局结束"); return; }
+  polTimer = setTimeout(polTick, delay === undefined ? polGap : delay);
+}
+function polTick(){
+  if (!polOn || !S || polBusy) return;
+  if (S.result !== 0){ polStop("对局结束"); return; }
+  let r;
+  const 观测 = Object.assign({}, S, { heat: (infOn && heat) ? heat : null });
+  try { r = polFn(观测, polMem); }
+  catch (e){ polStop("脚本出错：" + e.message); return; }
+  const b = polBody(r);
+  if (!b){ polStop("返回值不合法：要 {act, dir?, range?}"); return; }
+  polBusy = true;
+  api("/api/act", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(b) })
+    .then(ns => { S = ns; polBusy = false; render(); polSchedule(); })
+    .catch(e => { polBusy = false; polStop("提交被拒：" + e.message); });
+}
+function polStart(){
+  const code = $("pol_code").value || "";
+  if (!code.trim()){ polStop("脚本是空的——先写或载入示范"); return; }
+  let f;
+  try { f = new Function("观测", "记忆", code); }
+  catch (e){ polStop("语法错误：" + e.message); return; }
+  polFn = f; polOn = true; polBusy = false;
+  $("pol_tog").textContent = "关"; $("pol_tog").classList.add("sel");
+  $("go").disabled = true;
+  polStatus("运行中…", "stok");
+  polSchedule(0);
+}
+function polStop(msg){
+  polOn = false; polBusy = false; clearTimeout(polTimer);
+  $("pol_tog").textContent = "开"; $("pol_tog").classList.remove("sel");
+  const isEnd = msg && msg.indexOf("结束") >= 0;
+  polStatus(msg || "已停", isEnd ? "stidle" : (msg ? "stbad" : "stidle"));
+  if (S) $("go").disabled = (S.result !== 0);
+}
+function polToggle(){ if (polOn) polStop("已停"); else polStart(); }
+
+// ============ 算法沙盒 · 段②：推断编辑器 ＋ 概率热图（批三） ============
+let infOn = false, infFn = null, infMem = {}, heat = null, heatLog = [], lastProbes = [], pendingScanmiss = [], obsTick = 0, obs = [];
+
+const DEMO_INFER = `//示范 · 守恒图 v1：1024格「敌位信念」（行优先 y*32+x）
+//总账守恒：均匀=0.1/格（TOT=102.4）；升温=别处按比例降温（每拍归一）
+//规则：敌爆→长线(≤16)×叠环(4.05~16)加热 · 轴心带(爆炸直径宽)统一减
+//      自弹爆/扫描未中→圈内统一减（炸过/探过的地方热低）
+//      报告=尖峰 · 反炮=圆环 · 被警=弱盘
+const N = 32, TOT = 1024 * 0.1;
+const KS = 0.06;   // 每拍蒸发（全图降温）· 调大=回稳更快
+const WR = 0.05;   // 环带升温档
+const WL = 0.05;   // 轴心带统一减（"长线"）· 剂量减半防大水坑
+const WX = 0.05;   // 排除圈统一减（自弹/扫描）· 剂量减半防大水坑
+const K  = 0.12;   // 扩散（差值中和）· 调大=回稳更快
+if (!记忆.init){ for (let i = 0; i < N * N; i++) 图[i] = 0.1; 记忆.init = 1; }
+function 环加(cx, cy, r0, r1, w){
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+    const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+    if (d >= r0 && d <= r1) 图[y * N + x] += w;
+  }
+}
+function 圈减(cx, cy, r, w){
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+    if (Math.hypot(x + 0.5 - cx, y + 0.5 - cy) <= r - 1) 图[y * N + x] -= w; // 边缘一圈=0（不挖）
+  }
+}
+function 尖峰(cx, cy, w){
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+    const d = Math.hypot(x + 0.5 - cx, y + 0.5 - cy);
+    if (d <= 3) 图[y * N + x] += w * (1 - d / 3);
+  }
+}
+// ① 每拍：蒸发 ＋ 扩散（同拍不重复）
+if (记忆.last !== 观测.tick){
+  记忆.last = 观测.tick;
+  for (let i = 0; i < N * N; i++) 图[i] *= (1 - KS);
+  const cp = 图.slice();
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+    const i = y * N + x;
+    let s = 0, n = 0;
+    if (x > 0){ s += cp[i - 1]; n++; }
+    if (x < N - 1){ s += cp[i + 1]; n++; }
+    if (y > 0){ s += cp[i - N]; n++; }
+    if (y < N - 1){ s += cp[i + N]; n++; }
+    图[i] = cp[i] + K * (s / n - cp[i]);
+  }
+}
+// ② 事件（游标防重复）
+if (记忆.done === undefined) 记忆.done = 0;
+const evs = 观测.events || [];
+if (记忆.done > evs.length) 记忆.done = 0;
+for (; 记忆.done < evs.length; 记忆.done++){
+  const e = evs[记忆.done];
+  if (e.t === "scanmiss"){ 圈减(e.x, e.y, 3, WX); continue; }    // 探过的地方热低
+  if (e.t === "report"){ 尖峰(e.x, e.y, 0.2); continue; }         // 探到敌
+  if (e.t === "fire"){ 环加(e.x, e.y, 4.05, 16, WR); continue; }  // 反炮：爆点圆环
+  if (e.t === "warn"){ 环加(e.x, e.y, 0, 6, 0.02); continue; }    // 被警：弱盘
+  if (e.t === "blast" && e.mine){ 圈减(e.mx, e.my, 4, WX); continue; } // 自弹：炸过的地方热低
+  if (e.t === "hear" || (e.t === "blast" && !e.mine)){
+    const px = e.px, py = e.py;   // 听见点：探器当拍点 / 本体当拍点
+    const dx = e.dx, dy = e.dy;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++){
+      const rx = x + 0.5 - px, ry = y + 0.5 - py;
+      const u = rx * dx + ry * dy;
+      const v = Math.abs(rx * dy - ry * dx);
+      const tc = Math.max(0, Math.min(16, u));
+      const dmin = Math.hypot(tc - u, v);
+      const dmax = Math.max(Math.hypot(u, v), Math.hypot(16 - u, v));
+      if (dmin <= 16 && dmax >= 4.05) 图[y * N + x] += WR;  // 环带（叠环）
+      if (dmin < 4) 图[y * N + x] -= WL;                    // 长线（轴心带，爆炸直径宽）减
+    }
+  }
+}
+// ③ 结算：归一化 ＝「这块升 · 别处按比例降」
+let s = 0; for (let i = 0; i < N * N; i++) s += 图[i];
+if (s > 0){ const k2 = TOT / s; for (let i = 0; i < N * N; i++) 图[i] *= k2; }
+return 图;
+`;
+
+function infStatus(txt, cls){ const el = $("inf_st"); el.textContent = txt; el.className = cls || "stidle"; }
+function absorbObs(){
+  if (!S) return;
+  if (S.tick < obsTick){ obs = []; obsTick = 0; lastProbes = []; pendingScanmiss = []; }
+  if (S.tick === obsTick) return;
+  const ev = S.tick;
+  for (const w of (S.warns || [])) if (w.tick > obsTick && w.tick <= ev) obs.push({ t:"warn", tick:w.tick, x:w.x, y:w.y });
+  for (const r of (S.reports || [])) if (r.tick > obsTick && r.tick <= ev) obs.push({ t:"report", tick:r.tick, x:r.x, y:r.y, dx:r.dx, dy:r.dy });
+  for (const f of (S.fires || [])) if (f.tick > obsTick && f.tick <= ev) obs.push({ t:"fire", tick:f.tick, x:f.x, y:f.y });
+  for (const h of (S.hears || [])) if (h.tick > obsTick && h.tick <= ev){
+    const pr = (S.probes || []).find(p => p.i === h.i);
+    obs.push({ t:"hear", tick:h.tick, i:h.i, dx:h.dx, dy:h.dy, px: pr ? pr.cur[0] : S.pos[0], py: pr ? pr.cur[1] : S.pos[1] });
+  }
+  // 爆声：保留全部（自弹不过滤）；自带 mine/落点/本体当拍位（自弹判据来自壳）
+  for (const b of (S.blasts || [])) if (b.tick > obsTick && b.tick <= ev){
+    obs.push({ t:"blast", tick:b.tick, dx:b.dx, dy:b.dy, mine:!!b.mine, mx:b.mx, my:b.my, px:b.px, py:b.py });
+  }
+  // 扫描未命中判定：报告比“消失”晚一拍到——挂起拍，等下一拍确认无报告再记
+  for (const pd of pendingScanmiss){
+    if (!(S.reports || []).some(r => r.tick >= pd.tick && r.tick <= pd.tick + 1))
+      obs.push({ t:"scanmiss", tick:pd.tick, x:pd.x, y:pd.y });
+  }
+  pendingScanmiss = [];
+  const ps = S.probes || [];
+  for (const p of ps){
+    const q = lastProbes.find(x => x.i === p.i);
+    if (q && q.active && !p.active) pendingScanmiss.push({ tick:ev, x:p.to[0], y:p.to[1] });
+  }
+  lastProbes = ps.map(p => ({ i:p.i, active:p.active }));
+  obsTick = ev;
+}
+function inferStep(){
+  if (!infFn) return;
+  if (!heat) heat = new Float64Array(1024);
+  const 观测 = { tick: S.tick, me: S.pos.slice(), cool: S.cooldown, alive: S.alive, bombs: S.bombs, probes: S.probes, events: obs };
+  let r;
+  try { r = infFn(观测, heat, infMem); }
+  catch (e){ infOn = false; $("inf_tog").textContent = "开"; $("inf_tog").classList.remove("sel"); infStatus("脚本出错：" + e.message, "stbad"); return; }
+  if (r && r.length === 1024) heat = r;
+}
+function drawHeat(g, k, arr){
+  const H = arr || heat;
+  if (!H) return;
+  // 绝对色标：值<0＝无色（可挖洞）；0→1＝蓝→青→绿→黄→红；>1 按顶色。
+  const C = [[60,120,255],[60,220,220],[80,220,90],[240,220,60],[255,64,48]];
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++){
+    const v = H[y * 32 + x];
+    if (v < 0) continue;
+    let t = v; if (t > 1) t = 1;
+    if (t < 0.03) continue;
+    const f = t * (C.length - 1);
+    const i0 = Math.min(C.length - 2, Math.floor(f));
+    const u = f - i0;
+    const c0 = C[i0], c1 = C[i0 + 1];
+    const r = Math.round(c0[0] + (c1[0] - c0[0]) * u);
+    const gv = Math.round(c0[1] + (c1[1] - c0[1]) * u);
+    const b = Math.round(c0[2] + (c1[2] - c0[2]) * u);
+    const alpha = 0.10 + 0.60 * t;
+    g.fillStyle = "rgba(" + r + "," + gv + "," + b + "," + alpha.toFixed(3) + ")";
+    g.fillRect(x * k, y * k, k, k);
+  }
+}
+function infToggle(){
+  if (infOn){
+    infOn = false;
+    $("inf_tog").textContent = "开"; $("inf_tog").classList.remove("sel");
+    infStatus("已关（图留在屏上）", "stidle");
+    return;
+  }
+  const code = $("inf_code").value || "";
+  if (!code.trim()){ infStatus("脚本是空的——先写或载入示范", "stbad"); return; }
+  try { infFn = new Function("观测", "图", "记忆", code); }
+  catch (e){ infStatus("语法错误：" + e.message, "stbad"); return; }
+  infOn = true;
+  $("inf_tog").textContent = "关"; $("inf_tog").classList.add("sel");
+    absorbObs(); inferStep();
+  if (infOn) infStatus("运行中（每拍更新）", "stok");
+}
+
+window.addEventListener("DOMContentLoaded", init);
+</script>
+</body>
+</html>

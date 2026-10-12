@@ -1,0 +1,8 @@
+[package]
+name = "kuyuan-graph"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kuyuan-core = { path = "../core" }
+kuyuan-registry = { path = "../registry" }

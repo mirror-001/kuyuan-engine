@@ -1,0 +1,11 @@
+[package]
+name = "kuyuan-wasm"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+kuyuan-play = { path = "../../play" }
+serde_json = { version = "1", features = ["float_roundtrip"] }

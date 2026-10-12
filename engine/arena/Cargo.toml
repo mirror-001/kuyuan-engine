@@ -1,0 +1,11 @@
+[package]
+name = "kuyuan-arena"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kuyuan-core = { path = "../crates/core" }
+kuyuan-driver = { path = "../crates/driver" }
+kuyuan-log = { path = "../crates/log" }
+kuyuan-view = { path = "../crates/view" }
+serde_json = "1"

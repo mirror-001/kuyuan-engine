@@ -1,0 +1,7 @@
+[package]
+name = "kuyuan-eval"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kuyuan-core = { path = "../core" }

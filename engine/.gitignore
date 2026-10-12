@@ -1,0 +1,3 @@
+# 构建产物（推荐用 CARGO_TARGET_DIR 指到库外；此处兜底）
+target/
+*.rs.bk

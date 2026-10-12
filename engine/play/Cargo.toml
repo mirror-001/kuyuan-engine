@@ -1,0 +1,13 @@
+[package]
+name = "kuyuan-play"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kuyuan-arena = { path = "../arena" }
+kuyuan-core = { path = "../crates/core" }
+kuyuan-driver = { path = "../crates/driver" }
+kuyuan-log = { path = "../crates/log" }
+kuyuan-store = { path = "../crates/store" }
+kuyuan-view = { path = "../crates/view" }
+serde_json = { version = "1", features = ["float_roundtrip"] }

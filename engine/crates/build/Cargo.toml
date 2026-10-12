@@ -1,0 +1,10 @@
+[package]
+name = "kuyuan-build"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+kuyuan-core = { path = "../core" }
+kuyuan-eval = { path = "../eval" }
+kuyuan-registry = { path = "../registry" }
+kuyuan-graph = { path = "../graph" }
